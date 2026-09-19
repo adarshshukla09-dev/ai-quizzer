@@ -1,77 +1,41 @@
-import mongoose, { Schema } from "mongoose";
+// document.model.ts
+import mongoose, { Schema, Document as MongooseDocument } from "mongoose";
 
 const documentSchema = new Schema(
   {
     teacherId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       required: true,
       index: true,
+      default: "123",
     },
-
     title: {
       type: String,
       required: true,
       trim: true,
     },
-
     content: {
       type: String,
     },
-
-    // Cloudflare R2
-    source: {
-      provider: {
-        type: String,
-        default: "r2",
-      },
-      key: {
-        type: String,
-      },
-      url: {
-        type: String,
-      },
-      fileName: {
-        type: String,
-      },
-      size: {
-        type: Number,
-      },
-    },
-
     status: {
       type: String,
       enum: ["pending", "uploaded", "processing", "ready", "failed"],
       default: "pending",
+      index: true,
     },
-
     processing: {
       parser: {
         type: String,
         enum: ["structured", "unstructured"],
         default: "unstructured",
       },
-
-      parserVersion: {
-        type: String,
-      },
-
-      chunkerVersion: {
-        type: String,
-      },
-
-      embeddingModel: {
-        type: String,
-      },
-
-      embeddingDimension: {
-        type: Number,
-      },
+      parserVersion: String,
+      chunkerVersion: String,
+      embeddingModel: String,
+      embeddingDimension: Number,
+      errorMsg: String,
     },
-
-    pageCount: {
-      type: Number,
-    },
-
+    pageCount: Number,
     filetype: {
       type: String,
       enum: ["pdf", "docx", "ppt", "odt", "txt", "html", "md", "csv"],
@@ -83,5 +47,5 @@ const documentSchema = new Schema(
   },
 );
 
-export default mongoose.models.Document ||
-  mongoose.model("Document", documentSchema);
+export const DocumentModel =
+  mongoose.models.Document || mongoose.model("Document", documentSchema);

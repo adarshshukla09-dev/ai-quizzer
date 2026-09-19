@@ -6,6 +6,7 @@ const testSchema = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       index: true,
+      default: "123",
     },
 
     // Test generated from one or more documents

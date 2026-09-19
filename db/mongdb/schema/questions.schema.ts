@@ -6,6 +6,7 @@ const questionSchema = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       index: true,
+      default: "123",
     },
 
     documentId: {
