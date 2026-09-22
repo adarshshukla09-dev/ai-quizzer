@@ -1,5 +1,5 @@
 // document.model.ts
-import mongoose, { Schema, Document as MongooseDocument } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
 const documentSchema = new Schema(
   {

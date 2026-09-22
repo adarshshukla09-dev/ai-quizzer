@@ -1,8 +1,5 @@
 import { baseProcedure, createTRPCRouter } from "../init";
-import { todoRouter } from "./todo";
 
-export const appRouter = createTRPCRouter({
-  todo: todoRouter,
-});
+export const appRouter = createTRPCRouter({});
 
 export type AppRouter = typeof appRouter;
