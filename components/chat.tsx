@@ -40,7 +40,6 @@ export const Chat = () => {
     const userText = inputMessage.trim();
     setInputMessage("");
 
-    // Step A: Immediately show User Message and Bot Placeholder
     setMessages((prev) => [
       ...prev,
       { sender: "user", text: userText },
@@ -49,7 +48,6 @@ export const Chat = () => {
     setLoading(true);
 
     try {
-      // Step B: Send POST payload including conversation history
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
@@ -67,7 +65,6 @@ export const Chat = () => {
         const botReply = data.answer;
         const sources: Source[] = data.sources || [];
 
-        // Step C: Replace placeholder with actual answer
         setMessages((prev) =>
           prev.map((msg, idx) =>
             idx === prev.length - 1
@@ -76,7 +73,6 @@ export const Chat = () => {
           ),
         );
 
-        // Step D: Append to history state for subsequent follow-up queries
         setHistory((prev) => [
           ...prev,
           { role: "user", content: userText },
@@ -117,11 +113,11 @@ export const Chat = () => {
   };
 
   return (
-    <div className="w-full h-full max-w-4xl flex flex-col justify-between border rounded-xl p-6 bg-slate-50 shadow-sm">
+    <div className="flex h-full w-full flex-col justify-between p-4">
       {/* Message List */}
-      <div className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4">
+      <div className="mb-4 flex-1 overflow-y-auto space-y-4 pr-2">
         {messages.length === 0 ? (
-          <div className="h-full w-full flex items-center justify-center text-gray-400">
+          <div className="flex h-full w-full items-center justify-center text-gray-400">
             Ask a question about your uploaded document!
           </div>
         ) : (
@@ -133,25 +129,25 @@ export const Chat = () => {
               }`}
             >
               <div
-                className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm ${
+                className={`max-w-[80%] px-4 py-2.5 text-sm ${
                   msg.sender === "user"
-                    ? "bg-blue-600 text-white rounded-br-none"
-                    : "bg-white border text-gray-800 rounded-bl-none shadow-sm"
+                    ? "bg-blue-600 text-white rounded-md"
+                    : "border bg-white text-gray-800 shadow-sm rounded-md"
                 }`}
               >
                 {msg.text}
 
                 {/* Display Sources Badge if available */}
                 {msg.sources && msg.sources.length > 0 && (
-                  <div className="mt-3 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
-                    <LucideFileText className="w-3.5 h-3.5 text-blue-500" />
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-2 text-xs text-gray-500">
+                    <LucideFileText className="h-3.5 w-3.5 text-blue-500" />
                     <span className="font-medium text-gray-600">Sources:</span>
                     {Array.from(
                       new Set(msg.sources.map((s) => s.pageNumber)),
                     ).map((pg, i) => (
                       <span
                         key={i}
-                        className="bg-gray-100 border text-gray-600 px-1.5 py-0.5 rounded text-[11px]"
+                        className="rounded border bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600"
                       >
                         Page {pg}
                       </span>
@@ -166,20 +162,20 @@ export const Chat = () => {
       </div>
 
       {/* Input Bar */}
-      <div className="flex gap-2 items-center bg-white p-2 border rounded-lg shadow-sm">
+      <div className="flex items-center gap-2 border bg-white p-2 rounded-md shadow-sm">
         <input
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Ask a question about the document..."
-          className="flex-1 outline-none px-3 py-2 text-sm text-gray-800"
+          className="flex-1 px-3 py-2 text-sm text-gray-800 outline-none"
         />
         <button
           onClick={handleSearch}
           disabled={loading || !inputMessage.trim()}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white p-2.5 rounded-md transition"
+          className="rounded-md bg-blue-600 p-2.5 text-white transition hover:bg-blue-700 disabled:opacity-50"
         >
-          <LucideSend className="w-4 h-4" />
+          <LucideSend className="h-4 w-4" />
         </button>
       </div>
     </div>
