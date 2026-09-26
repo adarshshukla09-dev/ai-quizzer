@@ -1,4 +1,4 @@
-import TestCard, { TestItem } from "@/components/TestCard";
+import TestCard, { TestItem } from "@/components/utils/TestCard";
 
 export default function TestList() {
   const tests: TestItem[] = [
@@ -17,7 +17,7 @@ export default function TestList() {
   ];
 
   return (
-    <section className="w-full max-w-4xl mx-auto px-4 py-8 flex flex-col gap-4">
+    <section className="flex flex-col gap-3 p-2">
       {tests.map((test) => (
         <TestCard key={test.id} test={test} />
       ))}

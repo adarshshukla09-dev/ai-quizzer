@@ -11,7 +11,6 @@ const chunkSchema = new Schema(
     },
     teacherId: {
       type: Schema.Types.ObjectId,
-      default: "123",
       required: true,
       index: true,
     },
