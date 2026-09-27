@@ -10,7 +10,7 @@ const chunkSchema = new Schema(
       index: true,
     },
     teacherId: {
-      type: Schema.Types.ObjectId,
+      type: String,
       required: true,
       index: true,
     },

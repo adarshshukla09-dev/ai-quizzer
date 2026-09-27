@@ -3,13 +3,11 @@ import mongoose, { Schema } from "mongoose";
 const testSchema = new Schema(
   {
     teacherId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       required: true,
       index: true,
-      default: "123",
     },
 
-    // Test generated from one or more documents
     documentIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -29,19 +27,30 @@ const testSchema = new Schema(
       trim: true,
     },
 
-    // Questions selected from the Question collection
     questionIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Question",
-        required: true,
       },
     ],
 
     questionCount: {
-      type: Number,
-      required: true,
-      min: 1,
+      mcq: {
+        type: Number,
+        default: 0,
+      },
+      msq: {
+        type: Number,
+        default: 0,
+      },
+      nat: {
+        type: Number,
+        default: 0,
+      },
+      trueFalse: {
+        type: Number,
+        default: 0,
+      },
     },
 
     totalMarks: {
@@ -59,8 +68,15 @@ const testSchema = new Schema(
 
     status: {
       type: String,
-      enum: ["draft", "published", "archived"],
-      default: "draft",
+      enum: [
+        "GENERATING",
+        "COMPLETED",
+        "FAILED",
+        "DRAFT",
+        "PUBLISHED",
+        "ARCHIVED",
+      ],
+      default: "GENERATING",
     },
 
     settings: {
@@ -68,12 +84,10 @@ const testSchema = new Schema(
         type: Boolean,
         default: true,
       },
-
       shuffleOptions: {
         type: Boolean,
         default: true,
       },
-
       showResultImmediately: {
         type: Boolean,
         default: true,
@@ -87,4 +101,5 @@ const testSchema = new Schema(
 
 testSchema.index({ teacherId: 1, createdAt: -1 });
 
-export default mongoose.models.Test || mongoose.model("Test", testSchema);
+const Test = mongoose.models.Test || mongoose.model("Test", testSchema);
+export default Test;

@@ -4,10 +4,9 @@ import mongoose, { Schema, Document } from "mongoose";
 const documentSchema = new Schema(
   {
     teacherId: {
-      type: Schema.Types.ObjectId,
+      type: String,
       required: true,
       index: true,
-      default: "123",
     },
     title: {
       type: String,

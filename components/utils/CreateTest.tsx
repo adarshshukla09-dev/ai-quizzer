@@ -1,6 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   Dialog,
   DialogContent,
@@ -15,19 +23,45 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
-import { ChevronRight, ChevronLeft, Check, FileText } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  FileText,
+  FileUp,
+  Loader2,
+} from "lucide-react";
 import {
   NumberField,
   NumberFieldDecrement,
   NumberFieldGroup,
   NumberFieldIncrement,
   NumberFieldInput,
-  NumberFieldScrubArea,
 } from "@/components/reui/number-field";
+import { trpc } from "@/trpc/client";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/userStore";
 
-interface ToggleProps {
+export interface DocumentItem {
+  _id: string;
+  title: string;
+  category: string;
+}
+
+export interface TestPayload {
+  title: string;
+  description: string;
+  topic: string;
+  duration: number;
+  documentIds: string[];
+  questionCount: Record<QuestionTypeKey, number>;
+}
+
+interface CreateTestDialogProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  onSubmit?: (payload: TestPayload) => void;
+  documents?: DocumentItem[];
 }
 
 const QUESTION_TYPES = [
@@ -53,43 +87,84 @@ const QUESTION_TYPES = [
   },
 ] as const;
 
-export function CreateTestDialog({ isOpen, setIsOpen }: ToggleProps) {
-  const [step, setStep] = useState(1);
-  const [questionCount, setQuestionCount] = useState({
-    mcq: 0,
-    msq: 0,
-    nat: 0,
-    trueFalse: 0,
-  });
+type QuestionTypeKey = (typeof QUESTION_TYPES)[number]["key"];
 
-  const [testData, setTestData] = useState({
-    title: "",
-    description: "",
-    duration: "",
-  });
+const DEFAULT_QUESTION_COUNTS: Record<QuestionTypeKey, number> = {
+  mcq: 5,
+  msq: 0,
+  nat: 0,
+  trueFalse: 0,
+};
 
+const DEFAULT_TEST_DATA = {
+  title: "",
+  description: "",
+  topic: "",
+  duration: 60,
+};
+
+export function CreateTestDialog({
+  isOpen,
+  setIsOpen,
+  onSubmit,
+}: CreateTestDialogProps) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [questionCount, setQuestionCount] = useState<
+    Record<QuestionTypeKey, number>
+  >(DEFAULT_QUESTION_COUNTS);
+  const [testData, setTestData] = useState(DEFAULT_TEST_DATA);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
 
-  const documents = [
-    { _id: "1", title: "React Basics", category: "Frontend" },
-    { _id: "2", title: "NextJS Guide", category: "Fullstack" },
-    { _id: "3", title: "TypeScript", category: "Languages" },
-  ];
+  const totalQuestions = Object.values(questionCount).reduce(
+    (acc, count) => acc + count,
+    0,
+  );
 
-  const handleQuestionCountChange = (
-    type: keyof typeof questionCount,
-    value: number,
-  ) => {
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+
+  useEffect(() => {
+    if (!user?.id) {
+      router.push("/login");
+    }
+  }, [user?.id, router]);
+
+  const {
+    data: documents,
+    isLoading,
+    isError,
+    error,
+  } = trpc.document.getDocument.useQuery(
+    { teacherId: user?.id ?? "" },
+    { enabled: !!user?.id },
+  );
+
+  const resetForm = () => {
+    setStep(1);
+    setTestData(DEFAULT_TEST_DATA);
+    setQuestionCount(DEFAULT_QUESTION_COUNTS);
+    setSelectedDocumentIds([]);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      resetForm();
+    }
+  };
+
+  const handleQuestionCountChange = (type: QuestionTypeKey, value: number) => {
     setQuestionCount((prev) => ({
       ...prev,
-      [type]: Math.max(0, value),
+      [type]: isNaN(value) ? 0 : Math.max(0, value),
     }));
   };
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
     setTestData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: value,
     }));
   };
 
@@ -99,22 +174,18 @@ export function CreateTestDialog({ isOpen, setIsOpen }: ToggleProps) {
     );
   };
 
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
-    if (!open) {
-      setStep(1); // Reset wizard state on close
-    }
-  };
-
   const handleSave = () => {
-    const finalPayload = {
+    const finalPayload: TestPayload = {
       ...testData,
       documentIds: selectedDocumentIds,
       questionCount,
     };
 
-    console.log("Final Payload:", finalPayload);
-    // Call your tRPC mutation here
+    if (onSubmit) {
+      onSubmit(finalPayload);
+    } else {
+      console.log("Final Payload:", finalPayload);
+    }
 
     handleOpenChange(false);
   };
@@ -166,6 +237,7 @@ export function CreateTestDialog({ isOpen, setIsOpen }: ToggleProps) {
                   placeholder="e.g. Midterm Computer Science Exam"
                   value={testData.title}
                   onChange={handleInput}
+                  autoFocus
                 />
               </div>
 
@@ -180,19 +252,48 @@ export function CreateTestDialog({ isOpen, setIsOpen }: ToggleProps) {
                 />
               </div>
 
-              <div className="w-full  max-w-48">
-                <NumberField defaultValue={60} min={0} max={100} step={10}>
-                  <NumberFieldScrubArea label="Questions" />
-                  <NumberFieldGroup>
-                    <NumberFieldDecrement />
-                    <NumberFieldInput />
-                    <NumberFieldIncrement />
-                  </NumberFieldGroup>
-                </NumberField>
+              <div className="grid gap-2">
+                <Label htmlFor="topic">Test Topics (from PDF)</Label>
+                <Input
+                  id="topic"
+                  name="topic"
+                  placeholder="e.g. Custom hooks, Context API, useCallback"
+                  value={testData.topic}
+                  onChange={handleInput}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="duration">Duration (Minutes)</Label>
+                <div className="w-full max-w-48">
+                  <NumberField
+                    id="duration"
+                    value={testData.duration}
+                    onValueChange={(val) =>
+                      setTestData((prev) => ({
+                        ...prev,
+                        duration: val ?? 0,
+                      }))
+                    }
+                    min={5}
+                    max={300}
+                    step={5}
+                  >
+                    <NumberFieldGroup>
+                      <NumberFieldDecrement />
+                      <NumberFieldInput />
+                      <NumberFieldIncrement />
+                    </NumberFieldGroup>
+                  </NumberField>
+                </div>
               </div>
             </div>
+
             <DialogFooter>
-              <Button onClick={() => setStep(2)} disabled={!testData.title}>
+              <Button
+                onClick={() => setStep(2)}
+                disabled={!testData.title.trim()}
+              >
                 Next <ChevronRight className="ml-1 h-4 w-4" />
               </Button>
             </DialogFooter>
@@ -210,41 +311,70 @@ export function CreateTestDialog({ isOpen, setIsOpen }: ToggleProps) {
             </DialogHeader>
 
             <ScrollArea className="h-70 pr-3 my-2">
-              <div className="flex flex-col gap-2">
-                {documents.map((doc) => {
-                  const selected = selectedDocumentIds.includes(doc._id);
+              {isLoading ? (
+                <div className="flex items-center justify-center p-8 h-full">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !documents || documents.length === 0 ? (
+                <div className="flex items-center justify-center p-4 h-full">
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyTitle>No documents found</EmptyTitle>
+                      <EmptyDescription>
+                        You haven&apos;t uploaded any study materials yet.
+                        Upload a document to generate questions automatically.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent className="flex-col items-center gap-3">
+                      <Button asChild size="sm">
+                        <Link href="/documents/upload">
+                          <FileUp className="mr-2 h-4 w-4" /> Upload Document
+                        </Link>
+                      </Button>
+                    </EmptyContent>
+                  </Empty>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {documents.map((doc) => {
+                    const selected = selectedDocumentIds.includes(doc._id);
 
-                  return (
-                    <Card
-                      key={doc._id}
-                      className={`p-3 flex flex-row items-center justify-between transition-all hover:border-primary/50 ${
-                        selected ? "border-primary bg-primary/5" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                    return (
+                      <Card
+                        key={doc._id}
+                        className={`p-3 flex flex-row items-center justify-between transition-all hover:border-primary/50 cursor-pointer ${
+                          selected ? "border-primary bg-primary/5" : ""
+                        }`}
+                        onClick={() => toggleDocument(doc._id)}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
 
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium leading-none truncate">
-                            {doc.title}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium leading-none truncate">
+                              {doc.title}
+                            </p>
 
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {doc.category}
-                          </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {doc.category}
+                            </p>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="shrink-0 ml-4">
-                        <Checkbox
-                          checked={selected}
-                          onCheckedChange={() => toggleDocument(doc._id)}
-                        />
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
+                        <div
+                          className="shrink-0 ml-4"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox
+                            checked={selected}
+                            onCheckedChange={() => toggleDocument(doc._id)}
+                          />
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </ScrollArea>
 
             <DialogFooter className="flex justify-between sm:justify-between">
@@ -284,9 +414,15 @@ export function CreateTestDialog({ isOpen, setIsOpen }: ToggleProps) {
                     </p>
                   </div>
 
-                  <div className="w-25  max-w-48">
-                    <NumberField defaultValue={5} min={0} max={10}>
-                      <NumberFieldScrubArea label="Questions" />
+                  <div className="w-28 max-w-48">
+                    <NumberField
+                      value={questionCount[key]}
+                      onValueChange={(val) =>
+                        handleQuestionCountChange(key, val ?? 0)
+                      }
+                      min={0}
+                      max={50}
+                    >
                       <NumberFieldGroup>
                         <NumberFieldDecrement />
                         <NumberFieldInput />
@@ -296,13 +432,22 @@ export function CreateTestDialog({ isOpen, setIsOpen }: ToggleProps) {
                   </div>
                 </div>
               ))}
+
+              <div className="flex justify-between items-center text-xs text-muted-foreground px-1 pt-1">
+                <span>Total Questions:</span>
+                <span className="font-semibold text-foreground">
+                  {totalQuestions}
+                </span>
+              </div>
             </div>
 
             <DialogFooter className="flex justify-between sm:justify-between">
               <Button variant="outline" onClick={() => setStep(2)}>
                 <ChevronLeft className="mr-1 h-4 w-4" /> Back
               </Button>
-              <Button onClick={handleSave}>Create Test</Button>
+              <Button onClick={handleSave} disabled={totalQuestions === 0}>
+                Create Test
+              </Button>
             </DialogFooter>
           </>
         )}

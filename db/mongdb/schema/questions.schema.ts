@@ -3,17 +3,18 @@ import mongoose, { Schema } from "mongoose";
 const questionSchema = new Schema(
   {
     teacherId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       required: true,
       index: true,
-      default: "123",
     },
 
-    documentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: true,
-      index: true,
-    },
+    documentIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Document",
+        required: true,
+      },
+    ],
 
     questionIndex: {
       type: Number,
@@ -34,6 +35,7 @@ const questionSchema = new Schema(
 
     answer: {
       type: String,
+      default: "",
     },
 
     correctOptions: {
@@ -56,7 +58,9 @@ const questionSchema = new Schema(
   },
 );
 
-questionSchema.index({ documentId: 1, questionIndex: 1 }, { unique: true });
+// Indexed for faster querying by teacher
+questionSchema.index({ teacherId: 1, createdAt: -1 });
 
-export default mongoose.models.Question ||
-  mongoose.model("Question", questionSchema);
+const Question =
+  mongoose.models.Question || mongoose.model("Question", questionSchema);
+export default Question;
