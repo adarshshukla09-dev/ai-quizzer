@@ -150,27 +150,18 @@ async function extractTextFromBuffer(
   const ext = path.extname(fileName).toLowerCase().replace(".", "");
 
   switch (ext) {
-    /* PDF */
     case "pdf": {
       return extractTextFromPDF(buffer);
     }
-
-    /* Microsoft Word */
     case "docx": {
       return extractTextFromDOCX(buffer);
     }
-
-    /* Microsoft PowerPoint */
     case "pptx": {
       return extractTextFromPPTX(buffer);
     }
-
-    /* Microsoft Excel */
     case "xlsx": {
       return extractTextFromXLSX(buffer);
     }
-
-    /* Plain text */
     case "txt":
     case "md":
     case "csv":
@@ -178,7 +169,6 @@ async function extractTextFromBuffer(
     case "json": {
       return extractTextFromTextFile(buffer);
     }
-
     default:
       throw new Error(
         `Unsupported file extension: .${ext} for file "${fileName}"`,
@@ -209,8 +199,13 @@ export const ragWorker = new Worker(
 
     const { fileName, filePath, teacherId } = job.data;
 
+    // Strict payload checks
     if (!fileName || !filePath) {
       throw new Error("Invalid job payload: missing fileName or filePath.");
+    }
+
+    if (!teacherId) {
+      throw new Error("Missing teacherId in RAG ingestion job payload.");
     }
 
     const { data: fileBlob, error: downloadError } = await supabaseAdmin.storage
@@ -251,18 +246,11 @@ export const ragWorker = new Worker(
     ------------------------------------------------------- */
 
     const document = await DocumentModel.create({
-      teacherId: teacherId
-        ? new mongoose.Types.ObjectId(teacherId)
-        : new mongoose.Types.ObjectId(),
-
+      teacherId,
       title: fileName,
-
       content: rawText,
-
       status: "processing",
-
       pageCount: pageCount || 0,
-
       filetype: fileExtension,
     });
 
@@ -293,6 +281,7 @@ export const ragWorker = new Worker(
     console.log("First embedding length:", embeddings[0]?.length);
     console.log("First embedding:", embeddings[0]?.slice(0, 10));
     console.log(`Generated embeddings for ${embeddings.length} chunks`);
+
     if (!embeddings || embeddings.length !== chunks.length) {
       throw new Error(
         `Embedding count mismatch. Expected ${chunks.length}, got ${
@@ -307,22 +296,14 @@ export const ragWorker = new Worker(
 
     const chunkRecords = chunks.map((chunkText, index) => ({
       documentId: document._id,
-
       teacherId: document.teacherId,
-
       chunkIndex: index,
-
       content: chunkText,
-
       embedding: embeddings[index],
-
       metadata: {
         fileName,
-
         fileType: fileExtension,
-
         pageCount: pageCount || 0,
-
         chunkIndex: index,
       },
     }));
@@ -343,11 +324,9 @@ export const ragWorker = new Worker(
 
     const updatedDocument = await DocumentModel.findByIdAndUpdate(
       document._id,
-
       {
         status: "ready",
       },
-
       {
         new: true,
       },
@@ -361,18 +340,14 @@ export const ragWorker = new Worker(
 
     return {
       documentId: document._id.toString(),
-
       chunks: insertedChunks.length,
-
       characters: rawText.length,
-
       fileName,
     };
   },
 
   {
     connection: redis,
-
     concurrency: 1,
   },
 );
