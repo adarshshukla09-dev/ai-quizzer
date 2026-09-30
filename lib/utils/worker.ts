@@ -2,18 +2,16 @@ import path from "path";
 import dotenv from "dotenv";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
-
+import { extractKeywords } from "@/lib/keywords";
 import { Worker } from "bullmq";
 import { redis } from "./redis";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
-import { getEmbeddings } from "./embedding";
+import { getDocumentEmbeddings } from "./embedding";
 import { supabaseAdmin } from "../supabase-admin";
 
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { parseOffice } from "officeparser";
-
-import mongoose from "mongoose";
 import { DocumentModel } from "@/db/mongdb/schema/documents.schema";
 import { ChunkModel } from "@/db/mongdb/schema/Chunks.schema";
 import { connectDB } from "@/db/mongdb/connection";
@@ -52,10 +50,6 @@ function extractTextFromAST(node: unknown): string {
   return "";
 }
 
-/* =========================================================
-   PDF
-========================================================= */
-
 async function extractTextFromPDF(buffer: Buffer): Promise<{
   text: string;
   pageCount: number;
@@ -75,10 +69,6 @@ async function extractTextFromPDF(buffer: Buffer): Promise<{
     await parser.destroy();
   }
 }
-
-/* =========================================================
-   DOCX
-========================================================= */
 
 async function extractTextFromDOCX(buffer: Buffer): Promise<{
   text: string;
@@ -108,10 +98,6 @@ async function extractTextFromPPTX(buffer: Buffer): Promise<{
   };
 }
 
-/* =========================================================
-   XLSX
-========================================================= */
-
 async function extractTextFromXLSX(buffer: Buffer): Promise<{
   text: string;
 }> {
@@ -124,10 +110,6 @@ async function extractTextFromXLSX(buffer: Buffer): Promise<{
   };
 }
 
-/* =========================================================
-   TEXT FILES
-========================================================= */
-
 async function extractTextFromTextFile(buffer: Buffer): Promise<{
   text: string;
 }> {
@@ -135,10 +117,6 @@ async function extractTextFromTextFile(buffer: Buffer): Promise<{
     text: cleanText(buffer.toString("utf-8")),
   };
 }
-
-/* =========================================================
-   MAIN EXTRACTOR
-========================================================= */
 
 async function extractTextFromBuffer(
   buffer: Buffer,
@@ -185,10 +163,6 @@ const splitter = new RecursiveCharacterTextSplitter({
   chunkOverlap: 200,
 });
 
-/* =========================================================
-   RAG WORKER
-========================================================= */
-
 export const ragWorker = new Worker(
   "rag-ingestion",
 
@@ -199,7 +173,6 @@ export const ragWorker = new Worker(
 
     const { fileName, filePath, teacherId } = job.data;
 
-    // Strict payload checks
     if (!fileName || !filePath) {
       throw new Error("Invalid job payload: missing fileName or filePath.");
     }
@@ -221,7 +194,6 @@ export const ragWorker = new Worker(
     }
 
     const arrayBuffer = await fileBlob.arrayBuffer();
-
     const fileBuffer = Buffer.from(arrayBuffer);
 
     console.log(`Extracting text from ${fileName}...`);
@@ -241,10 +213,6 @@ export const ragWorker = new Worker(
 
     const fileExtension = path.extname(fileName).toLowerCase().replace(".", "");
 
-    /* -------------------------------------------------------
-       CREATE DOCUMENT
-    ------------------------------------------------------- */
-
     const document = await DocumentModel.create({
       teacherId,
       title: fileName,
@@ -256,31 +224,19 @@ export const ragWorker = new Worker(
 
     console.log(`Created document ${document._id}`);
 
-    /* -------------------------------------------------------
-       CHUNK
-    ------------------------------------------------------- */
-
     console.log("Splitting document into chunks...");
-
     const chunks = await splitter.splitText(rawText);
-
     console.log(`Created ${chunks.length} chunks`);
 
     if (chunks.length === 0) {
       throw new Error("No chunks were generated from document.");
     }
 
-    /* -------------------------------------------------------
-       EMBEDDINGS
-    ------------------------------------------------------- */
+    console.log(`Extracting keywords for ${chunks.length} chunks...`);
+    const chunkKeywords = chunks.map((chunk) => extractKeywords(chunk));
 
     console.log(`Generating embeddings for ${chunks.length} chunks...`);
-
-    const embeddings = await getEmbeddings(chunks);
-    console.log("Embedding count:", embeddings.length);
-    console.log("First embedding length:", embeddings[0]?.length);
-    console.log("First embedding:", embeddings[0]?.slice(0, 10));
-    console.log(`Generated embeddings for ${embeddings.length} chunks`);
+    const embeddings = await getDocumentEmbeddings(chunks);
 
     if (!embeddings || embeddings.length !== chunks.length) {
       throw new Error(
@@ -289,10 +245,6 @@ export const ragWorker = new Worker(
         }`,
       );
     }
-
-    /* -------------------------------------------------------
-       PREPARE CHUNKS
-    ------------------------------------------------------- */
 
     const chunkRecords = chunks.map((chunkText, index) => ({
       documentId: document._id,
@@ -305,38 +257,19 @@ export const ragWorker = new Worker(
         fileType: fileExtension,
         pageCount: pageCount || 0,
         chunkIndex: index,
+        keywords: chunkKeywords[index], // <-- Attached keywords here
       },
     }));
-
-    /* -------------------------------------------------------
-       STORE EMBEDDINGS
-    ------------------------------------------------------- */
-
     console.log(`Storing ${chunkRecords.length} chunks...`);
-
     const insertedChunks = await ChunkModel.insertMany(chunkRecords);
-
     console.log(`Inserted ${insertedChunks.length} chunks into MongoDB`);
-
-    /* -------------------------------------------------------
-       MARK DOCUMENT READY
-    ------------------------------------------------------- */
-
     const updatedDocument = await DocumentModel.findByIdAndUpdate(
       document._id,
-      {
-        status: "ready",
-      },
-      {
-        new: true,
-      },
+      { status: "ready" },
+      { new: true },
     );
 
     console.log(`Document ${updatedDocument?._id} is ready`);
-
-    /* -------------------------------------------------------
-       RETURN RESULT
-    ------------------------------------------------------- */
 
     return {
       documentId: document._id.toString(),
@@ -345,7 +278,6 @@ export const ragWorker = new Worker(
       fileName,
     };
   },
-
   {
     connection: redis,
     concurrency: 1,
