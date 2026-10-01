@@ -1,86 +1,103 @@
 import z from "zod";
-import { baseProcedure, createTRPCRouter } from "../init";
 import { TRPCError } from "@trpc/server";
-import { connectDB } from "@/db/mongdb/connection";
+import mongoose from "mongoose";
+import { baseProcedure, createTRPCRouter } from "../init";
 
+import { connectDB } from "@/db/mongdb/connection";
 import { DocumentModel } from "@/db/mongdb/schema/documents.schema";
 import { ChunkModel } from "@/db/mongdb/schema/Chunks.schema";
+import { tryCatch } from "@/lib/utils/trycatch";
 
 export const documentRouter = createTRPCRouter({
   getDocument: baseProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ ctx, input }) => {
-      try {
+    .input(
+      z.object({
+        teacherId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return tryCatch(async () => {
         await connectDB();
 
-        const document = await DocumentModel.findById(input.id);
-
-        if (!document) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "This document could not be found.",
-          });
-        }
-
-        return document;
-      } catch (error) {
-        if (error instanceof TRPCError) throw error;
-
-        if (error instanceof Error && error.name === "CastError") {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "The provided document ID format is invalid.",
-          });
-        }
-
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "An unexpected database error occurred.",
-          cause: error,
+        const documents = await DocumentModel.find({
+          teacherId: input.teacherId,
         });
-      }
+
+        return documents;
+      });
     }),
   updateDocument: baseProcedure
     .input(
       z.object({
         _id: z.string(),
+
         title: z.string(),
-        teacherId: z.string(), // temporary adding teacherId replace for the context
+
+        teacherId: z.string(),
       }),
     )
     .mutation(async ({ input }) => {
       try {
         await connectDB();
-        const document = await DocumentModel.find({
+
+        const document = await DocumentModel.findOne({
           _id: input._id,
+
           teacherId: input.teacherId,
         });
-        if (document.length == 0) {
-          return "Document not found";
+
+        if (!document) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+
+            message: "Document not found",
+          });
         }
-        DocumentModel.updateOne(
-          { _id: input._id, teacherId: input.teacherId },
-          { $set: { title: input.title } },
+
+        const updated = await DocumentModel.updateOne(
+          {
+            _id: input._id,
+            teacherId: input.teacherId,
+          },
+
+          {
+            $set: {
+              title: input.title,
+            },
+          },
         );
+
+        return {
+          success: true,
+
+          updatedCount: updated.modifiedCount,
+        };
       } catch (error) {
-        if (error instanceof Error) {
-          return error.message;
+        if (error instanceof TRPCError) {
+          throw error;
         }
 
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "An unexpected database error occurred.",
+
+          message: "Failed to update document",
+
           cause: error,
         });
       }
     }),
+
   addDocument: baseProcedure
     .input(
       z.object({
         teacherId: z.string(),
+
         title: z.string(),
+
         content: z.string().optional(),
+
         pageCount: z.number().optional(),
+
         filetype: z.enum([
           "pdf",
           "docx",
@@ -91,44 +108,25 @@ export const documentRouter = createTRPCRouter({
           "md",
           "csv",
         ]),
-        processing: z
-          .object({
-            parser: z.enum(["structured", "unstructured"]).optional(),
-            parserVersion: z.string().optional(),
-            chunkerVersion: z.string().optional(),
-            embeddingModel: z.string().optional(),
-            embeddingDimension: z.number().optional(),
-            errorMsg: z.string().optional(),
-          })
-          .optional(),
       }),
     )
     .mutation(async ({ input }) => {
       try {
         await connectDB();
 
-        if (!input.teacherId) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Teacher ID is missing.",
-          });
-        }
-        const newDocument = await DocumentModel.create({
-          teacherId: input.teacherId,
-          title: input.title,
-          content: input.content,
-          pageCount: input.pageCount,
-          filetype: input.filetype,
-          processing: input.processing,
-        });
+        const document = await DocumentModel.create(input);
 
-        return newDocument;
+        return document;
       } catch (error) {
-        if (error instanceof TRPCError) throw error.message;
+        if (error instanceof TRPCError) {
+          throw error;
+        }
 
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create document.",
+
+          message: "Failed to create document",
+
           cause: error,
         });
       }
@@ -138,39 +136,57 @@ export const documentRouter = createTRPCRouter({
     .input(
       z.object({
         documentId: z.string(),
+
         teacherId: z.string(),
       }),
     )
     .mutation(async ({ input }) => {
       try {
         await connectDB();
-        if (!input.documentId || !input.teacherId) {
-          return TRPCError;
-        }
-        // add ctx inplace of input.teacherId if you want to get teacherId from session
-        const docs = await DocumentModel.find({
-          teacherId: input.teacherId,
-          _id: input.documentId,
-        });
-        if (docs.length == 0) {
-          return "Document not found for the given teacherId and documentId.";
-        }
-        const deletedDocument = await DocumentModel.deleteOne({
-          teacherId: input.teacherId,
-          _id: input.documentId,
-        });
-        console.log(`Deleted documents count: ${deletedDocument}`);
 
-        const deletedChunk = await ChunkModel.deleteMany({
-          documentId: input.documentId,
+        const document = await DocumentModel.findOne({
+          _id: input.documentId,
+
           teacherId: input.teacherId,
         });
+
+        if (!document) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+
+            message: "Document not found",
+          });
+        }
+
+        const deletedDocument = await DocumentModel.deleteOne({
+          _id: input.documentId,
+
+          teacherId: input.teacherId,
+        });
+
+        const deletedChunks = await ChunkModel.deleteMany({
+          documentId: input.documentId,
+
+          teacherId: input.teacherId,
+        });
+
+        return {
+          success: true,
+
+          deletedDocuments: deletedDocument.deletedCount,
+
+          deletedChunks: deletedChunks.deletedCount,
+        };
       } catch (error) {
-        if (error instanceof TRPCError) throw error.message;
+        if (error instanceof TRPCError) {
+          throw error;
+        }
 
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create document.",
+
+          message: "Failed to delete document",
+
           cause: error,
         });
       }
@@ -180,44 +196,47 @@ export const documentRouter = createTRPCRouter({
     .input(
       z.object({
         ids: z.array(z.string()),
+
         teacherId: z.string(),
       }),
     )
     .mutation(async ({ input }) => {
       try {
         await connectDB();
-        // here also you can add ctx.teacherId if you want to get teacherId from session
-        if (!input.ids || !input.teacherId) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Document IDs or Teacher ID is missing.",
-          });
-        }
-
-        const documents = await DocumentModel.find({
-          teacherId: input.teacherId,
-          _id: { $in: input.ids },
-        });
 
         const deletedDocuments = await DocumentModel.deleteMany({
           teacherId: input.teacherId,
-          _id: { $in: input.ids },
+
+          _id: {
+            $in: input.ids,
+          },
         });
-        console.log(
-          `Deleted documents count: ${deletedDocuments.deletedCount}`,
-        );
 
         const deletedChunks = await ChunkModel.deleteMany({
           teacherId: input.teacherId,
-          _id: { $in: input.ids },
+
+          documentId: {
+            $in: input.ids,
+          },
         });
-        console.log(`Deleted chunks count: ${deletedChunks.deletedCount}`);
+
+        return {
+          success: true,
+
+          deletedDocuments: deletedDocuments.deletedCount,
+
+          deletedChunks: deletedChunks.deletedCount,
+        };
       } catch (error) {
-        if (error instanceof TRPCError) throw error.message;
+        if (error instanceof TRPCError) {
+          throw error;
+        }
 
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to delete documents.",
+
+          message: "Failed to delete documents",
+
           cause: error,
         });
       }

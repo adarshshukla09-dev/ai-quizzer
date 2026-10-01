@@ -1,12 +1,16 @@
 import { create } from "zustand";
-import { User, Session } from "better-auth";
+import type { User, Session } from "better-auth";
+
+type AuthUser = User & {
+  role?: string | null;
+};
 
 interface AuthState {
-  user: User | null;
+  user: AuthUser | null;
   session: Session | null;
   isLoading: boolean;
 
-  setAuth: (user: User | null, session: Session | null) => void;
+  setAuth: (user: AuthUser | null, session: Session | null) => void;
   setLoading: (loading: boolean) => void;
   resetAuth: () => void;
 }

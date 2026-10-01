@@ -8,6 +8,8 @@ import { AuthProvider } from "@/components/providers/AuthProvider";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 
+import AuthRedirect from "@/components/providers/AuthRedirect";
+
 const spaceGroteskHeading = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-heading",
@@ -55,6 +57,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <TRPCProvider>
+              {/* <AuthRedirect /> */}
               <Navbar />
               <main className="pt-12">{children}</main>
               <Toaster />
