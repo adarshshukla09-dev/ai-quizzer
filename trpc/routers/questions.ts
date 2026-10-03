@@ -334,4 +334,52 @@ export const questionsRouter = createTRPCRouter({
         return questions;
       });
     }),
+  getQuestionForStudent: baseProcedure
+    .input(
+      z.object({
+        testId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (!ctx.session?.user) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "You must be logged in.",
+        });
+      }
+
+      return tryCatch(async () => {
+        await connectDB();
+
+        const test = await Test.findOne({
+          _id: input.testId,
+        });
+
+        if (!test) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Test not found",
+          });
+        }
+
+        const rawQuestions = await Question.find({
+          _id: { $in: test.questionIds },
+        }).lean();
+
+        if (rawQuestions.length === 0) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "No questions found for this test",
+          });
+        }
+
+        return rawQuestions.map((q) => ({
+          _id: q._id,
+          questionIndex: q.questionIndex,
+          questionType: q.questionType,
+          question: q.question,
+          options: q.options,
+        }));
+      });
+    }),
 });
