@@ -7,7 +7,8 @@ import { tryCatch } from "@/lib/utils/trycatch";
 import { NextResponse } from "next/server";
 import { Test } from "@/db/mongdb/schema/Test.schema";
 import { db } from "@/db/drizzle";
-import { AttemptResponse, StudentsResponse } from "@/db/drizzle/schema";
+import { and, eq, inArray } from "drizzle-orm";
+import { AttemptResponse, StudentsResponse, user } from "@/db/drizzle/schema";
 
 export function isAnswerCorrect(
   studentAnswer: unknown,
@@ -136,7 +137,8 @@ export const TestRouter = createTRPCRouter({
       z.object({
         testId: z.string(),
         teacherId: z.string(),
-        title: z.string(),
+        title: z.string().optional(),
+        duration: z.number().optional(),
         description: z.string().optional(),
       }),
     )
@@ -162,6 +164,7 @@ export const TestRouter = createTRPCRouter({
             $set: {
               title: input.title,
               description: input.description,
+              duration: input.duration, // Keep the existing duration
             },
           },
         );
@@ -261,10 +264,6 @@ export const TestRouter = createTRPCRouter({
       return tryCatch(async () => {
         await connectDB();
 
-        // --------------------------------
-        // 1. Get test
-        // --------------------------------
-
         const test = await Test.findById(input.testId).lean();
 
         if (!test) {
@@ -273,10 +272,13 @@ export const TestRouter = createTRPCRouter({
             message: "Test not found",
           });
         }
-
-        // --------------------------------
-        // 2. Make sure test has questions
-        // --------------------------------
+        if (test.isAvailable === false) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "This test is not available for submission",
+          });
+          return;
+        }
 
         const questionIds = test.questionIds ?? [];
 
@@ -286,10 +288,6 @@ export const TestRouter = createTRPCRouter({
             message: "This test has no questions",
           });
         }
-
-        // --------------------------------
-        // 3. Get questions from MongoDB
-        // --------------------------------
 
         const questions = await Question.find({
           _id: {
@@ -426,6 +424,67 @@ export const TestRouter = createTRPCRouter({
 
           accuracy,
         };
+      });
+    }),
+  toggleAvailability: baseProcedure
+    .input(
+      z.object({
+        testId: z.string(),
+        isAvailable: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      return tryCatch(async () => {
+        await connectDB();
+
+        const test = await Test.findByIdAndUpdate(
+          input.testId,
+          {
+            $set: {
+              isAvailable: input.isAvailable,
+            },
+          },
+          {
+            new: true,
+          },
+        ).lean();
+
+        if (!test) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Test not found",
+          });
+        }
+
+        return {
+          success: true,
+          isAvailable: test.isAvailable,
+        };
+      });
+    }),
+
+  getResults: baseProcedure
+    .input(z.object({ testId: z.string() }))
+    .query(async ({ input }) => {
+      return tryCatch(async () => {
+        const results = await db
+          .select({
+            // Student information
+            studentId: user.id,
+            studentName: user.name,
+            studentEmail: user.email,
+
+            // Result information
+            testId: StudentsResponse.testId,
+            score: StudentsResponse.score,
+            accuracy: StudentsResponse.accuracy,
+            timeCompleted: StudentsResponse.timeCompleted,
+          })
+          .from(StudentsResponse)
+          .innerJoin(user, eq(StudentsResponse.studentId, user.id))
+          .where(eq(StudentsResponse.testId, input.testId));
+
+        return results;
       });
     }),
 });

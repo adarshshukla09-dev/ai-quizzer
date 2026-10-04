@@ -1,28 +1,32 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import TestCard from "@/components/utils/TestCard";
-import { useAuthStore } from "@/store/userStore";
+import React, { useState, lazy, Suspense } from "react";
 import { trpc } from "@/trpc/client";
-import { Card } from "@/components/ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { FileQuestion, AlertCircle } from "lucide-react";
+import TestCard, { TestCardData } from "@/components/utils/TestCard";
+import { Loader2 } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+
+// Lazy load the dialog components
+const EditTestDialog = lazy(() =>
+  import("@/components/dialogs/EditDialog").then((mod) => ({
+    default: mod.EditTestDialog,
+  })),
+);
+
+const DeleteTestDialog = lazy(() =>
+  import("@/components/dialogs/DeleteTestDialog").then((mod) => ({
+    default: mod.DeleteTestDialog,
+  })),
+);
 
 export default function TestList() {
-  const router = useRouter();
-  const user = useAuthStore((state) => state.user);
+  const session = authClient.useSession();
+  const user = session.data?.user;
+  const utils = trpc.useUtils();
 
-  useEffect(() => {
-    if (!user?.id) {
-      router.push("/login");
-    }
-  }, [user?.id, router]);
+  const [selectedTest, setSelectedTest] = useState<TestCardData | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const {
     data: tests,
@@ -34,62 +38,115 @@ export default function TestList() {
     { enabled: !!user?.id },
   );
 
-  // 1. Auth Guard State
+  const updateMutation = trpc.test.updateTest.useMutation({
+    onSuccess: () => {
+      utils.test.getTest.invalidate();
+      setIsEditDialogOpen(false);
+      setSelectedTest(null);
+    },
+  });
+
+  const deleteMutation = trpc.test.DeleteTest.useMutation({
+    onSuccess: () => {
+      utils.test.getTest.invalidate();
+      setIsDeleteDialogOpen(false);
+      setSelectedTest(null);
+    },
+  });
+
+  const handleOpenEdit = (test: TestCardData) => {
+    setSelectedTest(test);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleOpenDelete = (test: TestCardData) => {
+    setSelectedTest(test);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmEdit = (data: {
+    title: string;
+    description: string;
+    duration: number;
+  }) => {
+    if (!selectedTest || !user?.id) return;
+    const testId = String(selectedTest._id || selectedTest.id);
+
+    updateMutation.mutate({
+      testId,
+      teacherId: user.id,
+      title: data.title,
+      description: data.description,
+      duration: data.duration,
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!selectedTest || !user?.id) return;
+    const testId = String(selectedTest._id || selectedTest.id);
+
+    deleteMutation.mutate({
+      testId,
+      teacherId: user.id,
+    });
+  };
+
+  if (session.isPending || isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   if (!user?.id) {
     return (
-      <div className="p-4 text-sm text-muted-foreground animate-pulse">
-        Redirecting to login...
+      <div className="text-muted-foreground">
+        Please log in to view your tests.
       </div>
     );
   }
 
-  // 2. Loading Skeleton State
-  if (isLoading) {
-    return (
-      <div className="flex flex-col gap-3 p-2">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="h-24 w-full animate-pulse bg-muted/40" />
-        ))}
-      </div>
-    );
-  }
-
-  // 3. Error State
   if (isError) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
-        <AlertCircle className="h-4 w-4 shrink-0" />
-        <span>Failed to load tests: {error.message}</span>
-      </div>
+      <div className="text-red-500">Error loading tests: {error.message}</div>
     );
   }
 
-  // 4. Empty State
-  if (!tests || tests.length === 0) {
-    return (
-      <div className="flex justify-center p-8 border rounded-lg bg-card">
-        <Empty>
-          <EmptyHeader>
-            <div className="flex justify-center mb-2">
-              <FileQuestion className="h-8 w-8 text-muted-foreground/60" />
-            </div>
-            <EmptyTitle>No tests generated yet</EmptyTitle>
-            <EmptyDescription>
-              Create your first test using the button above to start generating
-              AI questions from your documents.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </div>
-    );
-  }
-
-  // 5. Test List
   return (
-    <section className="flex flex-col gap-3 p-2">
-      {tests.map((test) => (
-        <TestCard key={test._id} test={test} />
-      ))}
-    </section>
+    <>
+      <div className="grid gap-4">
+        {tests?.map((test: any) => (
+          <TestCard
+            key={test._id || test.id}
+            test={test}
+            onEdit={() => handleOpenEdit(test)}
+            onDelete={() => handleOpenDelete(test)}
+          />
+        ))}
+      </div>
+
+      <Suspense fallback={null}>
+        {isEditDialogOpen && (
+          <EditTestDialog
+            open={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+            test={selectedTest}
+            onConfirm={handleConfirmEdit}
+            isPending={updateMutation.isPending}
+          />
+        )}
+
+        {isDeleteDialogOpen && (
+          <DeleteTestDialog
+            open={isDeleteDialogOpen}
+            onOpenChange={setIsDeleteDialogOpen}
+            test={selectedTest}
+            onConfirm={handleConfirmDelete}
+            isPending={deleteMutation.isPending}
+          />
+        )}
+      </Suspense>
+    </>
   );
 }
