@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Queue } from "bullmq";
+import { headers } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { auth } from "@/lib/auth";
 
 const connection = {
   host: process.env.REDIS_HOST || "localhost",
@@ -26,9 +28,22 @@ const uploadQueue = new Queue("rag-ingestion", {
 
 export async function POST(req: NextRequest) {
   try {
+    // Better Auth Server Session Retrieval
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Unauthorized: Missing active session" },
+        { status: 401 },
+      );
+    }
+
+    const teacherId = session.user.id;
+
     const formData = await req.formData();
     const file = formData.get("file");
-    const teacherId = formData.get("teacherId") as string | null;
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -79,7 +94,7 @@ export async function POST(req: NextRequest) {
       {
         filePath: data.path,
         fileName: file.name,
-        teacherId: teacherId || null,
+        teacherId, // Guaranteed to exist now
         uploadedAt: Date.now(),
       },
       {

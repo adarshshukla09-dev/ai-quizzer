@@ -57,7 +57,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <TRPCProvider>
-              {/* <AuthRedirect /> */}
+              <AuthRedirect />
               <Navbar />
               <main className="pt-12">{children}</main>
               <Toaster />

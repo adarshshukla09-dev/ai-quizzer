@@ -180,7 +180,7 @@ export function CreateTestDialog({
       documentIds: selectedDocumentIds,
       questionCount,
     };
-
+    console.log(finalPayload);
     if (onSubmit) {
       onSubmit(finalPayload);
     } else {
