@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+
+  "name": "rag-queue-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-07",
+
+  "vars": {
+    "NEXT_APP_URL": "http://localhost:3000"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  "queues": {
+    "producers": [
+      {
+        "queue": "rag-ingestion",
+        "binding": "RAG_QUEUE"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "rag-ingestion",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5
+      }
+    ]
+  }
+}
