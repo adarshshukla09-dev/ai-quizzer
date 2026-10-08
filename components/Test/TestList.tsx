@@ -2,7 +2,7 @@
 
 import React, { useState, lazy, Suspense } from "react";
 import { trpc } from "@/trpc/client";
-import TestCard, { TestCardData } from "@/components/utils/TestCard";
+import TestCard, { TestCardData } from "@/components/Test/TestCard";
 import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 

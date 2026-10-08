@@ -50,6 +50,7 @@ function Navbar() {
   const user = useAuthStore((state) => state.user);
   const isLoading = useAuthStore((state) => state.isLoading);
   const resetAuth = useAuthStore((state) => state.resetAuth);
+
   // Component State
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark" | null>(
@@ -59,9 +60,26 @@ function Navbar() {
   // TRPC Mutation
   const { mutateAsync: updateUser } = trpc.user.updateRole.useMutation();
 
-  const handleSelectRole = async (role: "teacher" | "student") => {
+  const handleSelectRole = async (
+    role: "teacher" | "student",
+    geminiApiKey?: string,
+  ) => {
     try {
-      const updatedUser = await updateUser({ role });
+      const updatedUser = await updateUser({
+        role,
+        geminiApiKey,
+      });
+
+      // Keep Zustand in sync with updated DB response
+      useAuthStore.setState((state) => ({
+        ...state,
+        user: state.user
+          ? {
+              ...state.user,
+              role: updatedUser.role,
+            }
+          : state.user,
+      }));
 
       setIsRoleDialogOpen(false);
     } catch (error) {
