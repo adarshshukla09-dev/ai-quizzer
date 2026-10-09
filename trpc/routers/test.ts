@@ -9,7 +9,18 @@ import { Test } from "@/db/mongdb/schema/Test.schema";
 import { db } from "@/db/drizzle";
 import { and, eq, inArray } from "drizzle-orm";
 import { AttemptResponse, StudentsResponse, user } from "@/db/drizzle/schema";
+export function generateTestCode(length = 6): string {
+  const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+  let code = "";
+
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    code += characters[randomIndex];
+  }
+
+  return code;
+}
 export function isAnswerCorrect(
   studentAnswer: unknown,
   question: IQuestion,
@@ -88,49 +99,54 @@ function serializeAnswer(answer: unknown): string {
 }
 export const TestRouter = createTRPCRouter({
   createTest: baseProcedure
-    .input(
-      z.object({
-        teacherId: z.string().min(1, "Teacher ID is required"),
-        documentIds: z.array(z.string()).min(1, "Select at least one document"),
-        title: z.string().min(1, "Test title is required"),
-        description: z.string().optional(),
-        questionCount: z.object({
-          mcq: z.number().min(0).default(0),
-          msq: z.number().min(0).default(0),
-          nat: z.number().min(0).default(0),
-          trueFalse: z.number().min(0).default(0),
-        }),
-        totalMarks: z.number().min(1, "Total marks must be greater than 0"),
-        duration: z.number().min(1, "Duration must be at least 1 minute"),
+  .input(
+    z.object({
+      teacherId: z.string().min(1, "Teacher ID is required"),
+      documentIds: z.array(z.string()).min(1, "Select at least one document"),
+      title: z.string().min(1, "Test title is required"),
+      description: z.string().optional(),
+
+      questionCount: z.object({
+        mcq: z.number().min(0).default(0),
+        msq: z.number().min(0).default(0),
+        nat: z.number().min(0).default(0),
+        trueFalse: z.number().min(0).default(0),
       }),
-    )
-    .mutation(async ({ input }) => {
-      return tryCatch(async () => {
-        await connectDB();
 
-        console.log(
-          "Creating Test with Input:",
-          JSON.stringify(input, null, 2),
-        );
-
-        // Create the initial Test document in GENERATING state with empty questionIds
-        const test = await Test.create({
-          teacherId: input.teacherId,
-          documentIds: input.documentIds,
-          title: input.title,
-          description: input.description,
-
-          questionIds: [],
-          questionCount: input.questionCount,
-          totalMarks: input.totalMarks,
-          duration: input.duration,
-          status: "GENERATING",
-        });
-
-        // Use toObject() so _id is properly formatted for frontend serialization
-        return test.toObject();
-      });
+      totalMarks: z.number().min(1),
+      duration: z.number().min(1),
     }),
+  )
+  .mutation(async ({ input }) => {
+    return tryCatch(async () => {
+      await connectDB();
+
+      const testCode = generateTestCode();
+
+      console.log("Creating Test:", {
+        title: input.title,
+        testCode,
+      });
+
+      const test = await Test.create({
+        teacherId: input.teacherId,
+        documentIds: input.documentIds,
+        title: input.title,
+        description: input.description,
+
+        testCode,
+
+        questionIds: [],
+        questionCount: input.questionCount,
+        totalMarks: input.totalMarks,
+        duration: input.duration,
+
+        status: "GENERATING",
+      });
+
+      return test.toObject();
+    });
+  }),
 
   updateTest: baseProcedure
     .input(
@@ -277,7 +293,6 @@ export const TestRouter = createTRPCRouter({
             code: "FORBIDDEN",
             message: "This test is not available for submission",
           });
-          return;
         }
 
         const questionIds = test.questionIds ?? [];
@@ -473,8 +488,7 @@ export const TestRouter = createTRPCRouter({
             studentId: user.id,
             studentName: user.name,
             studentEmail: user.email,
-
-            // Result information
+            studentImage: user.image,
             testId: StudentsResponse.testId,
             score: StudentsResponse.score,
             accuracy: StudentsResponse.accuracy,

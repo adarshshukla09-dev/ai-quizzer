@@ -1,8 +1,15 @@
-import { drizzle } from "drizzle-orm/neon-http";
+import "dotenv/config";
+import net from "node:net";
+
+net.setDefaultAutoSelectFamily(false);
+
 import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
 
-const sql = neon(process.env.DATABASE_URL!);
+import * as schema from "./schema/index";
 
-const db = drizzle(sql);
+const sql = neon(process.env.DB_URL!);
 
-export default db;
+export const db = drizzle(sql, {
+  schema,
+});

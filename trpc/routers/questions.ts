@@ -5,7 +5,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { connectDB } from "@/db/mongdb/connection";
 import Question, { IQuestion } from "@/db/mongdb/schema/questions.schema";
-import Test from "@/db/mongdb/schema/Test.schema";
+import { Test } from "@/db/mongdb/schema/Test.schema";
 import { tryCatch } from "@/lib/utils/trycatch";
 import { questionGenerationPrompt } from "@/lib/gemini/prompts";
 import { getQueryEmbedding } from "@/lib/utils/embedding";
