@@ -1,6 +1,22 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, Types } from "mongoose";
 
-const questionSchema = new Schema(
+export type QuestionType = "MCQ" | "MSQ" | "TRUE_FALSE" | "NAT";
+
+export interface IQuestion {
+  teacherId: string;
+  documentIds: Types.ObjectId[];
+  questionIndex: number;
+  questionType: QuestionType;
+  question: string;
+  answer: string;
+  correctOptions: string[];
+  explanation: string;
+  options: string[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const questionSchema = new Schema<IQuestion>(
   {
     teacherId: {
       type: String,
@@ -10,7 +26,7 @@ const questionSchema = new Schema(
 
     documentIds: [
       {
-        type: mongoose.Schema.Types.ObjectId,
+        type: Schema.Types.ObjectId,
         ref: "Document",
         required: true,
       },
@@ -58,9 +74,13 @@ const questionSchema = new Schema(
   },
 );
 
-// Indexed for faster querying by teacher
-questionSchema.index({ teacherId: 1, createdAt: -1 });
+questionSchema.index({
+  teacherId: 1,
+  createdAt: -1,
+});
 
 const Question =
-  mongoose.models.Question || mongoose.model("Question", questionSchema);
+  mongoose.models.Question ||
+  mongoose.model<IQuestion>("Question", questionSchema);
+
 export default Question;
