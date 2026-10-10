@@ -1,12 +1,12 @@
 import z from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { baseProcedure, createTRPCRouter } from "../init";
+import { baseProcedure, createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/db/drizzle";
 import { user as userTable } from "@/db/drizzle/schema/auth";
 import { encryptApiKey } from "@/lib/encryption";
 export const userRouter = createTRPCRouter({
-  updateRole: baseProcedure
+  updateRole: protectedProcedure
     .input(
       z.object({
         role: z.enum(["student", "teacher"]),
@@ -40,7 +40,8 @@ export const userRouter = createTRPCRouter({
       }
       return updatedUser[0];
     }),
-  getUser: baseProcedure
+
+  getUser: protectedProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ input }) => {
       const result = await db

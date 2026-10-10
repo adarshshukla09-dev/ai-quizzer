@@ -1,14 +1,13 @@
 import z from "zod";
 import { TRPCError } from "@trpc/server";
-import mongoose from "mongoose";
-import { baseProcedure, createTRPCRouter } from "../init";
+import {  createTRPCRouter, protectedProcedure } from "../init";
 
 import { connectDB } from "@/db/mongdb/connection";
 import { ChunkModel } from "@/db/mongdb/schema/Chunks.schema";
 import { tryCatch } from "@/lib/utils/trycatch";
 
 export const chunksRouter = createTRPCRouter({
-  getChunk: baseProcedure
+  getChunk: protectedProcedure
     .input(
       z.object({
         documentId: z.string(),

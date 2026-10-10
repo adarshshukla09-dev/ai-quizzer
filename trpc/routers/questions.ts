@@ -19,6 +19,8 @@ import {
   searchSimilarChunks,
 } from "@/lib/utils/retriver";
 import { NextResponse } from "next/server";
+import { db } from "@/db/drizzle";
+import { user } from "@/db/drizzle/schema";
 const questionGenerationSchema = z.object({
   questions: z.array(
     z.object({
@@ -48,11 +50,27 @@ export const questionsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       return tryCatch(async () => {
         await connectDB();
+        const apikey = await db
+          .select({
+            apiKeyEncrypted: user.apiKeyEncrypted,
+          })
+          .from(user)
+          .limit(1);
+
+        if (!apikey[0]?.apiKeyEncrypted) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "API key not found",
+          });
+        }
 
         const totalQuestions = input.mcq + input.msq + input.nat + input.tf;
 
         const searchText = input.topic;
-        const embedding = await getQueryEmbedding(searchText);
+        const embedding = await getQueryEmbedding(
+          apikey[0].apiKeyEncrypted,
+          searchText,
+        );
         // 1. Retrieval
         const denseChunks = await searchSimilarChunks(
           embedding,

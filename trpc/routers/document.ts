@@ -1,7 +1,7 @@
 import z from "zod";
 import { TRPCError } from "@trpc/server";
 import mongoose from "mongoose";
-import { baseProcedure, createTRPCRouter } from "../init";
+import { baseProcedure, createTRPCRouter, protectedProcedure } from "../init";
 
 import { connectDB } from "@/db/mongdb/connection";
 import { DocumentModel } from "@/db/mongdb/schema/documents.schema";
@@ -9,7 +9,7 @@ import { ChunkModel } from "@/db/mongdb/schema/Chunks.schema";
 import { tryCatch } from "@/lib/utils/trycatch";
 
 export const documentRouter = createTRPCRouter({
-  getDocument: baseProcedure
+  getDocument: protectedProcedure
     .input(
       z.object({
         teacherId: z.string(),
@@ -26,7 +26,7 @@ export const documentRouter = createTRPCRouter({
         return documents;
       });
     }),
-  updateDocument: baseProcedure
+  updateDocument: protectedProcedure
     .input(
       z.object({
         _id: z.string(),
@@ -87,7 +87,7 @@ export const documentRouter = createTRPCRouter({
       }
     }),
 
-  addDocument: baseProcedure
+  addDocument: protectedProcedure
     .input(
       z.object({
         teacherId: z.string(),
@@ -132,7 +132,7 @@ export const documentRouter = createTRPCRouter({
       }
     }),
 
-  deleteDocument: baseProcedure
+  deleteDocument: protectedProcedure
     .input(
       z.object({
         documentId: z.string(),
@@ -192,7 +192,7 @@ export const documentRouter = createTRPCRouter({
       }
     }),
 
-  deleteMultipleDocuments: baseProcedure
+  deleteMultipleDocuments: protectedProcedure
     .input(
       z.object({
         ids: z.array(z.string()),
