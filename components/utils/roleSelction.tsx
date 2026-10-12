@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent, useEffect } from "react";
+import { useState, FormEvent } from "react";
 
 import {
   Dialog,
@@ -12,15 +12,17 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { useAuthStore } from "@/store/userStore";
-import { useRouter } from "next/navigation";
+import { Input } from "@/components/ui/input";
 
 type Role = "teacher" | "student";
 
 interface ChooseRoleDialogProps {
   isOpen?: boolean;
   onClose?: () => void;
-  onSubmitRole?: (role: Role) => Promise<void>;
+  onSubmitRole?: (
+    role: Role,
+    geminiApiKey?: string
+  ) => Promise<void>;
 }
 
 export default function ChooseRoleDialog({
@@ -29,13 +31,40 @@ export default function ChooseRoleDialog({
   onSubmitRole,
 }: ChooseRoleDialogProps) {
   const [role, setRole] = useState<Role | "">("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleRoleChange = (value: string) => {
+    const newRole = value as Role;
+
+    setRole(newRole);
+
+    // Clear the API key if the user switches back to student
+    if (newRole === "student") {
+      setGeminiApiKey("");
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!role) return;
 
-    await onSubmitRole?.(role);
+    // Teacher must provide a Gemini API key
+    if (role === "teacher" && !geminiApiKey.trim()) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      await onSubmitRole?.(
+        role,
+        role === "teacher" ? geminiApiKey.trim() : undefined
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const roles: { label: string; value: Role }[] = [
@@ -48,6 +77,9 @@ export default function ChooseRoleDialog({
       value: "student",
     },
   ];
+
+  const isTeacher = role === "teacher";
+  const isValid = role && (!isTeacher || geminiApiKey.trim());
 
   return (
     <Dialog
@@ -69,7 +101,7 @@ export default function ChooseRoleDialog({
 
             <RadioGroup
               value={role}
-              onValueChange={(value) => setRole(value as Role)}
+              onValueChange={handleRoleChange}
               className="space-y-3 pt-2"
             >
               {roles.map((item) => {
@@ -90,7 +122,9 @@ export default function ChooseRoleDialog({
                       value={item.value}
                     />
 
-                    <span className="text-sm font-medium">{item.label}</span>
+                    <span className="text-sm font-medium">
+                      {item.label}
+                    </span>
                   </Label>
                 );
               })}
@@ -101,6 +135,28 @@ export default function ChooseRoleDialog({
             </FieldDescription>
           </Field>
 
+          {isTeacher && (
+            <Field>
+              <FieldLabel htmlFor="gemini-api-key">
+                Gemini API Key
+              </FieldLabel>
+
+              <Input
+                id="gemini-api-key"
+                type="password"
+                placeholder="Enter your Gemini API key"
+                value={geminiApiKey}
+                onChange={(event) => setGeminiApiKey(event.target.value)}
+                autoComplete="off"
+              />
+
+              <FieldDescription>
+                Your Gemini API key will be securely stored and used for
+                teacher features.
+              </FieldDescription>
+            </Field>
+          )}
+
           <div className="flex gap-3">
             {onClose && (
               <Button
@@ -108,6 +164,7 @@ export default function ChooseRoleDialog({
                 variant="outline"
                 onClick={onClose}
                 className="w-1/2"
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
@@ -115,10 +172,10 @@ export default function ChooseRoleDialog({
 
             <Button
               type="submit"
-              disabled={!role}
+              disabled={!isValid || isSubmitting}
               className={onClose ? "w-1/2" : "w-full"}
             >
-              Submit
+              {isSubmitting ? "Saving..." : "Submit"}
             </Button>
           </div>
         </form>

@@ -6,6 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { useAuthStore } from "@/store/userStore";
 
+// Unauthenticated public routes allowed without logging in
+const PUBLIC_ROUTES = ["/", "/docs"];
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setAuth = useAuthStore((state) => state.setAuth);
   const setLoading = useAuthStore((state) => state.setLoading);
@@ -24,11 +27,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (sessionData?.user && sessionData?.session) {
       setAuth(sessionData.user, sessionData.session);
 
-      // if (sessionData.user.role == null && pathname !== "/role") {
-      // router.push("/role");
-      // }
+      const userRole = (sessionData.user as { role?: string })?.role;
+
+      // If user is logged in but hasn't selected a role, direct them to /role
+      if (!userRole && pathname !== "/role") {
+        router.replace("/role");
+      }
     } else {
       resetAuth();
+
+      // Check if current route is allowed for unauthenticated users
+      const isPublicRoute = PUBLIC_ROUTES.some(
+        (route) => pathname === route || pathname.startsWith(`${route}/`)
+      );
+
+      // If not on a public route or already on /login, redirect unauthenticated users to /login
+      if (!isPublicRoute && pathname !== "/login") {
+        router.replace("/login");
+      }
     }
   }, [
     sessionData,

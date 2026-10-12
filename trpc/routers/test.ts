@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { baseProcedure, createTRPCRouter } from "../init";
+import { baseProcedure, createTRPCRouter, protectedProcedure } from "../init";
 import Question, { IQuestion } from "@/db/mongdb/schema/questions.schema";
 import { TRPCError } from "@trpc/server";
 import { connectDB } from "@/db/mongdb/connection";
@@ -98,7 +98,7 @@ function serializeAnswer(answer: unknown): string {
   return String(answer);
 }
 export const TestRouter = createTRPCRouter({
-  createTest: baseProcedure
+  createTest: protectedProcedure
   .input(
     z.object({
       teacherId: z.string().min(1, "Teacher ID is required"),
@@ -148,7 +148,7 @@ export const TestRouter = createTRPCRouter({
     });
   }),
 
-  updateTest: baseProcedure
+  updateTest: protectedProcedure
     .input(
       z.object({
         testId: z.string(),
@@ -190,7 +190,7 @@ export const TestRouter = createTRPCRouter({
       });
     }),
 
-  DeleteTest: baseProcedure
+  DeleteTest: protectedProcedure
     .input(
       z.object({
         testId: z.string(),
@@ -222,7 +222,7 @@ export const TestRouter = createTRPCRouter({
       });
     }),
 
-  getTest: baseProcedure
+  getTest: protectedProcedure
     .input(
       z.object({
         teacherId: z.string(),
@@ -240,7 +240,7 @@ export const TestRouter = createTRPCRouter({
       });
     }),
 
-  getTestById: baseProcedure
+  getTestById: protectedProcedure
     .input(
       z.object({
         teacherId: z.string(),
@@ -262,7 +262,7 @@ export const TestRouter = createTRPCRouter({
       });
     }),
 
-  submitTest: baseProcedure
+  submitTest: protectedProcedure
     .input(
       z.object({
         testId: z.string(),
@@ -441,7 +441,7 @@ export const TestRouter = createTRPCRouter({
         };
       });
     }),
-  toggleAvailability: baseProcedure
+  toggleAvailability: protectedProcedure
     .input(
       z.object({
         testId: z.string(),
@@ -478,7 +478,7 @@ export const TestRouter = createTRPCRouter({
       });
     }),
 
-  getResults: baseProcedure
+  getResults: protectedProcedure
     .input(z.object({ testId: z.string() }))
     .query(async ({ input }) => {
       return tryCatch(async () => {

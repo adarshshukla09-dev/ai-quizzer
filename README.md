@@ -135,28 +135,24 @@ AI Quizzer separates the user-facing application from document ingestion and bac
 
 ```mermaid
 flowchart TD
-    A[Educator] --> B[Next.js Web Application]
+    A["Educator"] --> B["Next.js Application"]
 
-    B --> C[Authentication]
-    B --> D[tRPC / Application Logic]
+    B --> C["Better Auth"]
+    B --> D["tRPC API"]
+    B --> E["Document Upload"]
 
-    C --> E[Better Auth]
-    E --> F[Drizzle ORM]
-    F --> G[(Neon PostgreSQL)]
+    C --> F[("Neon PostgreSQL")]
+    D --> G["Drizzle ORM"]
+    G --> F
 
-    B --> H[Document Upload]
-    H --> I[Supabase Storage]
-    H --> J[Ingestion Job]
+    E --> H["Supabase Storage"]
+    E --> I["Cloudflare Queue"]
 
-    J --> K[Cloudflare Queue]
-    K --> L[Background Processing]
-
-    L --> M[Document Text Extraction]
-    M --> N[AI Processing]
-
-    N --> O[Google Gemini / LangChain]
-    O --> P[Structured Question Output]
-    P --> Q[Assessment Data]
+    I --> J["Cloudflare Worker"]
+    J --> K["Document Text Extraction"]
+    K --> L["LangChain + Google Gemini"]
+    L --> M["Structured Questions"]
+    M --> N[("Assessment Data")]
 ```
 
 *The diagram illustrates the main architectural components. The exact execution path and persistence destination depend on the configured ingestion and question-generation workflows.*

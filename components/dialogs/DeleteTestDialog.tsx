@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { TestCardData } from "@/components/utils/TestCard";
+import { TestCardData } from "@/components/Test/TestCard";
 
 import {
   AlertDialog,

@@ -1,6 +1,6 @@
-import yake from "yake";
+import { KeywordExtractor } from "@ade_oshineye/yaket";
 
-const extractor = new yake.KeywordExtractor({
+const extractor = new KeywordExtractor({
   language: "en",
   n: 3,
   dedupLim: 0.7,
@@ -10,7 +10,11 @@ const extractor = new yake.KeywordExtractor({
 });
 
 export function extractKeywords(text: string): string[] {
-  const keywords = extractor.extract(text);
+  if (!text.trim()) {
+    return [];
+  }
 
-  return keywords.map((item: any) => item.keyword);
+  const keywords = extractor.extractKeywordDetails(text);
+
+  return keywords.map(({ keyword }:{ keyword: string }) => keyword);
 }

@@ -1,21 +1,37 @@
-import "dotenv/config";
-import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_API_KEY,
-});
+import { GoogleGenAI } from "@google/genai";
 
 const MODEL = "gemini-embedding-2-preview";
 
-const MAX_TEXTS_PER_MINUTE = 80;
 const BATCH_SIZE = 20;
+const CONCURRENCY = 3;
+const MAX_RETRIES = 5;
+const sleep = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+function createGeminiClient(apiKey: string): GoogleGenAI {
+  if (!apiKey?.trim()) {
+    throw new Error("Gemini API key is required");
+  }
+
+  return new GoogleGenAI({
+    apiKey: apiKey.trim(),
+  });
+}
 
 async function embedBatch(
+  apiKey: string,
   texts: string[],
-  taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY",
+  taskType:
+    | "RETRIEVAL_DOCUMENT"
+    | "RETRIEVAL_QUERY",
 ): Promise<number[][]> {
+  if (texts.length === 0) {
+    return [];
+  }
+
+  const ai = createGeminiClient(apiKey);
+
   let attempt = 0;
 
   while (true) {
@@ -33,53 +49,161 @@ async function embedBatch(
       });
 
       const embeddings =
-        response.embeddings?.map((embedding) => embedding.values ?? []) ?? [];
+        response.embeddings?.map(
+          (embedding) => embedding.values ?? [],
+        ) ?? [];
 
       if (embeddings.length !== texts.length) {
         throw new Error(
-          `Expected ${texts.length} embeddings, got ${embeddings.length}`,
+          `Expected ${texts.length} embeddings, ` +
+            `got ${embeddings.length}`,
         );
       }
 
       for (const embedding of embeddings) {
         if (embedding.length === 0) {
-          throw new Error("Google returned an empty embedding");
+          throw new Error(
+            "Google returned an empty embedding",
+          );
         }
       }
 
       return embeddings;
-    } catch (error: any) {
-      const message = error?.message ?? String(error);
+    } catch (error: unknown) {
+      const err = error as {
+        status?: number;
+        code?: number;
+        message?: string;
+      };
+
+      const message =
+        err.message ?? String(error);
 
       const isRateLimit =
-        error?.status === 429 ||
-        error?.code === 429 ||
+        err.status === 429 ||
+        err.code === 429 ||
         message.includes("429") ||
         message.includes("RESOURCE_EXHAUSTED");
 
-      if (!isRateLimit || attempt >= 5) {
+      if (!isRateLimit || attempt >= MAX_RETRIES) {
         throw error;
       }
 
-      const delay = Math.min(60_000, 5_000 * 2 ** attempt);
+      const delay = Math.min(
+        60_000,
+        5_000 * 2 ** attempt,
+      );
 
-      console.warn(`Gemini rate limited. Retrying in ${delay / 1000}s...`);
+      console.warn(
+        `Gemini rate limited. ` +
+          `Retrying in ${delay / 1000}s...`,
+      );
 
       await sleep(delay);
+
       attempt++;
     }
   }
 }
 
+/**
+ * Generate embeddings for document chunks.
+ *
+ * IMPORTANT:
+ * apiKey must be the user's decrypted Gemini API key.
+ *
+ * This function must only be called server-side.
+ */
 export async function getDocumentEmbeddings(
+  apiKey: string,
   texts: string[],
 ): Promise<number[][]> {
-  return embedBatch(texts, "RETRIEVAL_DOCUMENT");
+  if (texts.length === 0) {
+    return [];
+  }
+
+  const allEmbeddings: number[][] = [];
+
+  const totalBatches = Math.ceil(
+    texts.length / BATCH_SIZE,
+  );
+
+  const batches: string[][] = Array.from(
+    { length: totalBatches },
+    (_, i) =>
+      texts.slice(
+        i * BATCH_SIZE,
+        (i + 1) * BATCH_SIZE,
+      ),
+  );
+
+  for (
+    let i = 0;
+    i < batches.length;
+    i += CONCURRENCY
+  ) {
+    const currentBatches = batches.slice(
+      i,
+      i + CONCURRENCY,
+    );
+
+    const results = await Promise.all(
+      currentBatches.map((batch, index) => {
+        const batchNumber = i + index + 1;
+
+        console.log(
+          `Embedding batch ${batchNumber}/${totalBatches} ` +
+            `(${batch.length} chunks)`,
+        );
+
+        return embedBatch(
+          apiKey,
+          batch,
+          "RETRIEVAL_DOCUMENT",
+        );
+      }),
+    );
+
+    allEmbeddings.push(...results.flat());
+  }
+
+  return allEmbeddings;
 }
 
-export async function getQueryEmbedding(text: string): Promise<number[]> {
-  const [embedding] = await embedBatch([text], "RETRIEVAL_QUERY");
-  console.log("Query embedding dimension:", embedding.length);
+/**
+ * Generate an embedding for a search query.
+ *
+ * IMPORTANT:
+ * apiKey must be the user's decrypted Gemini API key.
+ *
+ * This function must only be called server-side.
+ */
+export async function getQueryEmbedding(
+  apiKey: string,
+  text: string,
+): Promise<number[]> {
+  if (!text.trim()) {
+    throw new Error(
+      "Query text cannot be empty",
+    );
+  }
+
+  const [embedding] = await embedBatch(
+    apiKey,
+    [text],
+    "RETRIEVAL_QUERY",
+  );
+
+  if (!embedding?.length) {
+    throw new Error(
+      "Google returned an empty query embedding",
+    );
+  }
+
+  console.log(
+    "Query embedding dimension:",
+    embedding.length,
+  );
 
   return embedding;
 }

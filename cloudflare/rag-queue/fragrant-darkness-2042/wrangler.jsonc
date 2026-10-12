@@ -6,7 +6,7 @@
   "compatibility_date": "2026-10-07",
 
   "vars": {
-    "NEXT_APP_URL": "http://localhost:3000"
+    
   },
 
   "observability": {

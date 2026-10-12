@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 
-const QuizTest = dynamic(() => import("@/components/utils/QuizTest"), {
+const QuizTest = dynamic(() => import("@/components/Test/QuizTest"), {
   ssr: false,
 });
 

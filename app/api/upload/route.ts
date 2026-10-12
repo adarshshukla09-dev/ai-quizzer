@@ -19,7 +19,6 @@ const ALLOWED_EXTENSIONS = [
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authenticate user
     const session = await auth.api.getSession({
       headers: await headers(),
     });

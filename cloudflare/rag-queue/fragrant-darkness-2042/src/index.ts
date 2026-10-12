@@ -103,4 +103,4 @@ export default {
       }
     }
   },
-} satisfies ExportedHandler<Cloudflare.Env>;
+} satisfies ExportedHandler<Env>;
