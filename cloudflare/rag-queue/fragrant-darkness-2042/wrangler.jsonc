@@ -5,9 +5,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-07",
 
-  "vars": {
-    
-  },
+ "vars": {
+  "NEXT_APP_URL": "https://aiquizzer.adarshshukla.cc.cd"
+},
 
   "observability": {
     "enabled": true
